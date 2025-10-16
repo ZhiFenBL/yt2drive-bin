@@ -23,38 +23,42 @@ jobs:
 
       - name: Download and Organize Channel Content
         id: download
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
-          # --- 1. Set up variables and the main folder (PowerShell Syntax) ---
+          # PowerShell variable setup
           $CHANNEL_HANDLE = "${{ github.event.inputs.channel_handle }}"
           $TIMESTAMP = (Get-Date -Format 'yyyyMMdd-HHmmss')
           $ROOT_FOLDER = "${CHANNEL_HANDLE}-${TIMESTAMP}"
-          
+
+          # 2. Write the secure cookie content to a temporary file
+          # We use $env:YOUTUBE_COOKIES to access the secret environment variable.
+          echo $env:YOUTUBE_COOKIES | Out-File -FilePath 'cookies.txt' -Encoding ascii
+          $COOKIE_ARG = "--cookies cookies.txt" # Set the argument for yt-dlp
+
           echo "Creating root download folder: $ROOT_FOLDER"
-          # 'mkdir' is recursive by default in PowerShell
           mkdir "$ROOT_FOLDER\videos"
           mkdir "$ROOT_FOLDER\shorts"
 
-          # --- 2. Download all regular videos (PowerShell Syntax) ---
+          # 3. Download all regular videos (using the cookie file)
           echo "--- Starting to download videos ---"
-          # PowerShell variable usage is $VAR not ${VAR}
           $VIDEOS_URL = "https://www.youtube.com/@$CHANNEL_HANDLE/videos"
           cd "$ROOT_FOLDER\videos"
-          # yt-dlp is assumed to be on the PATH (or run as 'yt-dlp.exe')
-          yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$VIDEOS_URL"
-          cd ..\.. # Directory navigation uses backslash
+          # Inject $COOKIE_ARG into the yt-dlp command
+          yt-dlp $COOKIE_ARG --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$VIDEOS_URL"
+          cd ..\..
           echo "--- Finished downloading videos ---"
           
-          # --- 3. Download all shorts (PowerShell Syntax) ---
+          # 4. Download all shorts (using the cookie file)
           echo "--- Starting to download shorts ---"
           $SHORTS_URL = "https://www.youtube.com/@$CHANNEL_HANDLE/shorts"
           cd "$ROOT_FOLDER\shorts"
-          yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$SHORTS_URL"
+          # Inject $COOKIE_ARG into the yt-dlp command
+          yt-dlp $COOKIE_ARG --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$SHORTS_URL"
           cd ..\..
           echo "--- Finished downloading shorts ---"
 
-          # --- 4. Set outputs for the next step (PowerShell Syntax) ---
           echo "All content downloaded into '$ROOT_FOLDER'"
-          # The environment variable is accessed via $env:GITHUB_OUTPUT
           echo "dirpath=$ROOT_FOLDER" >> $env:GITHUB_OUTPUT
           echo "remote_folder=$ROOT_FOLDER" >> $env:GITHUB_OUTPUT
 
