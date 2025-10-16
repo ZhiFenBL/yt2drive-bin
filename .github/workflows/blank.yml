@@ -1,0 +1,73 @@
+# .github/workflows/download_and_upload.yml
+
+name: Download and Upload YouTube Channel (Pre-compiled)
+
+on:
+  # This allows you to run this workflow manually from the Actions tab in GitHub
+  workflow_dispatch:
+    inputs:
+      channel_handle:
+        description: 'The handle of the YouTube channel (e.g., udayagammanpila6380)'
+        required: true
+        default: 'udayagammanpila6380'
+
+jobs:
+  build-and-upload:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository and executable
+        uses: actions/checkout@v4
+
+      - name: Install yt-dlp using pre-installed pipx
+        run: pipx install yt-dlp
+
+      - name: Download and Organize Channel Content
+        id: download
+        run: |
+          # --- 1. Set up variables and the main folder ---
+          CHANNEL_HANDLE="${{ github.event.inputs.channel_handle }}"
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          ROOT_FOLDER="${CHANNEL_HANDLE}-${TIMESTAMP}"
+          
+          echo "Creating root download folder: ${ROOT_FOLDER}"
+          mkdir -p "${ROOT_FOLDER}/videos"
+          mkdir -p "${ROOT_FOLDER}/shorts"
+
+          # --- 2. Download all regular videos ---
+          echo "--- Starting to download videos ---"
+          VIDEOS_URL="https://www.youtube.com/@${CHANNEL_HANDLE}/videos"
+          cd "${ROOT_FOLDER}/videos"
+          yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$VIDEOS_URL"
+          cd ../..
+          echo "--- Finished downloading videos ---"
+          
+          # --- 3. Download all shorts ---
+          echo "--- Starting to download shorts ---"
+          SHORTS_URL="https://www.youtube.com/@${CHANNEL_HANDLE}/shorts"
+          cd "${ROOT_FOLDER}/shorts"
+          yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$SHORTS_URL"
+          cd ../..
+          echo "--- Finished downloading shorts ---"
+
+          # --- 4. Set outputs for the next step ---
+          echo "All content downloaded into '${ROOT_FOLDER}'"
+          echo "dirpath=${ROOT_FOLDER}" >> $GITHUB_OUTPUT
+          echo "remote_folder=${ROOT_FOLDER}" >> $GITHUB_OUTPUT
+
+      - name: Run Pre-compiled Uploader
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+        run: |
+          LOCAL_DIR="${{ steps.download.outputs.dirpath }}"
+          REMOTE_FOLDER="${{ steps.download.outputs.remote_folder }}"
+
+          echo "Uploading directory '${LOCAL_DIR}' to Google Drive folder '${REMOTE_FOLDER}'..."
+          
+          # Make the binary executable
+          chmod +x ./yt2drive.exe
+
+          # Execute the pre-compiled application
+          ./yt2drive.exe "$LOCAL_DIR" "$REMOTE_FOLDER"
