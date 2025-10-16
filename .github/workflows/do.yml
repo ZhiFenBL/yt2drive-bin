@@ -19,12 +19,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install yt-dlp using pipx
-        # PowerShell 'run' commands use 'pwsh' shell syntax by default
-        run: pipx install yt-dlp
+        run: pip install yt-dlp
 
       - name: Download and Organize Channel Content
         id: download
-        shell: pwsh
         run: |
           # --- 1. Set up variables and the main folder (PowerShell Syntax) ---
           $CHANNEL_HANDLE = "${{ github.event.inputs.channel_handle }}"
@@ -65,7 +63,6 @@ jobs:
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
-        shell: pwsh
         run: |
           # PowerShell variable access for outputs: $env:VAR
           $LOCAL_DIR = "${{ steps.download.outputs.dirpath }}"
@@ -73,7 +70,5 @@ jobs:
 
           echo "Uploading directory '$LOCAL_DIR' to Google Drive folder '$REMOTE_FOLDER'..."
           
-          # 'chmod +x' is not needed/valid for Windows executables in PowerShell. REMOVED.
-
           # Execute the pre-compiled application (PowerShell execution syntax)
           .\yt2drive.exe "$LOCAL_DIR" "$REMOTE_FOLDER"
