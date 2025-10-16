@@ -3,7 +3,6 @@
 name: Download and Upload YouTube Channel (Pre-compiled)
 
 on:
-  # This allows you to run this workflow manually from the Actions tab in GitHub
   workflow_dispatch:
     inputs:
       channel_handle:
@@ -14,60 +13,67 @@ on:
 jobs:
   build-and-upload:
     runs-on: windows-latest
-
+    
     steps:
       - name: Checkout repository and executable
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp using pre-installed pipx
+      - name: Install yt-dlp using pipx
+        # PowerShell 'run' commands use 'pwsh' shell syntax by default
         run: pipx install yt-dlp
 
       - name: Download and Organize Channel Content
         id: download
+        shell: pwsh
         run: |
-          # --- 1. Set up variables and the main folder ---
-          CHANNEL_HANDLE="${{ github.event.inputs.channel_handle }}"
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          ROOT_FOLDER="${CHANNEL_HANDLE}-${TIMESTAMP}"
+          # --- 1. Set up variables and the main folder (PowerShell Syntax) ---
+          $CHANNEL_HANDLE = "${{ github.event.inputs.channel_handle }}"
+          $TIMESTAMP = (Get-Date -Format 'yyyyMMdd-HHmmss')
+          $ROOT_FOLDER = "${CHANNEL_HANDLE}-${TIMESTAMP}"
           
-          echo "Creating root download folder: ${ROOT_FOLDER}"
-          mkdir -p "${ROOT_FOLDER}/videos"
-          mkdir -p "${ROOT_FOLDER}/shorts"
+          echo "Creating root download folder: $ROOT_FOLDER"
+          # 'mkdir' is recursive by default in PowerShell
+          mkdir "$ROOT_FOLDER\videos"
+          mkdir "$ROOT_FOLDER\shorts"
 
-          # --- 2. Download all regular videos ---
+          # --- 2. Download all regular videos (PowerShell Syntax) ---
           echo "--- Starting to download videos ---"
-          VIDEOS_URL="https://www.youtube.com/@${CHANNEL_HANDLE}/videos"
-          cd "${ROOT_FOLDER}/videos"
+          # PowerShell variable usage is $VAR not ${VAR}
+          $VIDEOS_URL = "https://www.youtube.com/@$CHANNEL_HANDLE/videos"
+          cd "$ROOT_FOLDER\videos"
+          # yt-dlp is assumed to be on the PATH (or run as 'yt-dlp.exe')
           yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$VIDEOS_URL"
-          cd ../..
+          cd ..\.. # Directory navigation uses backslash
           echo "--- Finished downloading videos ---"
           
-          # --- 3. Download all shorts ---
+          # --- 3. Download all shorts (PowerShell Syntax) ---
           echo "--- Starting to download shorts ---"
-          SHORTS_URL="https://www.youtube.com/@${CHANNEL_HANDLE}/shorts"
-          cd "${ROOT_FOLDER}/shorts"
+          $SHORTS_URL = "https://www.youtube.com/@$CHANNEL_HANDLE/shorts"
+          cd "$ROOT_FOLDER\shorts"
           yt-dlp --ignore-errors -o "%(playlist_index)s - %(title)s.%(ext)s" "$SHORTS_URL"
-          cd ../..
+          cd ..\..
           echo "--- Finished downloading shorts ---"
 
-          # --- 4. Set outputs for the next step ---
-          echo "All content downloaded into '${ROOT_FOLDER}'"
-          echo "dirpath=${ROOT_FOLDER}" >> $GITHUB_OUTPUT
-          echo "remote_folder=${ROOT_FOLDER}" >> $GITHUB_OUTPUT
+          # --- 4. Set outputs for the next step (PowerShell Syntax) ---
+          echo "All content downloaded into '$ROOT_FOLDER'"
+          # The environment variable is accessed via $env:GITHUB_OUTPUT
+          echo "dirpath=$ROOT_FOLDER" >> $env:GITHUB_OUTPUT
+          echo "remote_folder=$ROOT_FOLDER" >> $env:GITHUB_OUTPUT
 
       - name: Run Pre-compiled Uploader
         env:
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+        shell: pwsh
         run: |
-          LOCAL_DIR="${{ steps.download.outputs.dirpath }}"
-          REMOTE_FOLDER="${{ steps.download.outputs.remote_folder }}"
+          # PowerShell variable access for outputs: $env:VAR
+          $LOCAL_DIR = "${{ steps.download.outputs.dirpath }}"
+          $REMOTE_FOLDER = "${{ steps.download.outputs.remote_folder }}"
 
-          echo "Uploading directory '${LOCAL_DIR}' to Google Drive folder '${REMOTE_FOLDER}'..."
+          echo "Uploading directory '$LOCAL_DIR' to Google Drive folder '$REMOTE_FOLDER'..."
           
-          # Make the binary executable
-          chmod +x ./yt2drive.exe
+          # 'chmod +x' is not needed/valid for Windows executables in PowerShell. REMOVED.
 
-          # Execute the pre-compiled application
-          ./yt2drive.exe "$LOCAL_DIR" "$REMOTE_FOLDER"
+          # Execute the pre-compiled application (PowerShell execution syntax)
+          .\yt2drive.exe "$LOCAL_DIR" "$REMOTE_FOLDER"
